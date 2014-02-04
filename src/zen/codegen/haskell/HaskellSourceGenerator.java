@@ -224,6 +224,7 @@ public class HaskellSourceGenerator extends ZSourceGenerator {
 		} else {
 			this.GenerateCode(Node.BodyNode);
 		}
+		System.out.println(this.CurrentBuilder);
 	}
 
 	@Override

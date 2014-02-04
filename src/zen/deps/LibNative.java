@@ -206,6 +206,7 @@ public class LibNative {
 		GenMap.put("jvm", zen.codegen.jvm.Java6ByteCodeGenerator.class);
 		GenMap.put("debug", zen.codegen.debug.ASTGenerator.class);
 		GenMap.put("erlang", zen.codegen.erlang.ErlSourceCodeGenerator.class);
+		GenMap.put("haskell", zen.codegen.haskell.HaskellSourceGenerator.class);
 	}
 
 	public final static ZGenerator LoadGenerator(@Nullable String ClassName, String OutputFile) {
