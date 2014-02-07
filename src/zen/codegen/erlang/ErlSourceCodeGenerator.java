@@ -1,6 +1,7 @@
 package zen.codegen.erlang;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 
 import zen.ast.ZBinaryNode;
 import zen.ast.ZBlockNode;
@@ -26,7 +27,12 @@ public class ErlSourceCodeGenerator extends ZSourceGenerator {
 	//	public int NodeListKey = 0;
 	private int WhileNodeNumber = 0;
 	private String WhileNodeName;
-	private int count_Cond;
+	//	private int count_Cond;
+	private int VarNumber;
+	HashMap<String,Integer> VarMap = new HashMap<String,Integer>();
+	HashMap<String,Integer> VarCloneMap = new HashMap<String,Integer>(this.VarMap);
+	private int if_flag = 0;
+	private int flag_return = 0;
 
 
 	public ErlSourceCodeGenerator/*constructor*/() {
@@ -34,6 +40,7 @@ public class ErlSourceCodeGenerator extends ZSourceGenerator {
 	}
 
 	@Override public void VisitFuncDeclNode(ZFuncDeclNode Node){
+		this.Variables = new ArrayList<String>();
 
 		this.CurrentBuilder.Append("-module("+Node.FuncName+").");
 		this.CurrentBuilder.AppendLineFeed();
@@ -52,16 +59,21 @@ public class ErlSourceCodeGenerator extends ZSourceGenerator {
 		while(i < size) {
 			this.CurrentBuilder.Indent();
 			this.CurrentBuilder.AppendIndent();
-			this.CurrentBuilder.Append("put(");
 			ZParamNode param = (ZParamNode)Node.ArgumentList.get(i);
-			this.CurrentBuilder.Append(param.Name);
-			this.CurrentBuilder.Append(",");
+			this.CurrentBuilder.Append(param.Name.toUpperCase()+this.VarNumber);
+			this.CurrentBuilder.Append(" = ");
 			this.CurrentBuilder.Append(param.Name.toUpperCase());
-			this.CurrentBuilder.Append("),");
+			this.CurrentBuilder.Append(",");
+			this.CurrentBuilder.AppendLineFeed();
+			this.CurrentBuilder.AppendIndent();
+			this.CurrentBuilder.Append("put("+param.Name+","+param.Name.toUpperCase()+"),");
 			this.CurrentBuilder.AppendLineFeed();
 			this.CurrentBuilder.UnIndent();
+			this.VarMap.put(param.Name,0);
+			this.Variables.add(param.Name);
 			i += 1;
 		}
+		this.VarNumber++;
 
 		this.CurrentBuilder.AppendLineFeed();
 		this.GenerateCode(Node.BodyNode);
@@ -108,7 +120,26 @@ public class ErlSourceCodeGenerator extends ZSourceGenerator {
 		Node.CondNode.Accept(this);
 		this.CurrentBuilder.Append(" ->");
 		this.CurrentBuilder.AppendLineFeed();
+		//		this.CurrentBuilder.AppendIndent();
+
+		//		for (String var : this.Variables) {
+		//			this.CurrentBuilder.Indent();
+		//			this.CurrentBuilder.AppendIndent();
+		//			this.CurrentBuilder.Append(var.toUpperCase() + this.VarMap.get(var) +" = get("+var+"),");
+		//			this.CurrentBuilder.AppendLineFeed();
+		//			this.CurrentBuilder.UnIndent();
+		//		}
+
 		this.VisitWhileBlockNode((ZBlockNode)Node.BodyNode);
+
+		//		for (String var : this.Variables) {
+		//			this.CurrentBuilder.Indent();
+		//			this.CurrentBuilder.AppendIndent();
+		//			this.CurrentBuilder.Append("put("+var+","+var.toUpperCase()+this.VarMap.get(var)+"),");
+		//			this.CurrentBuilder.AppendLineFeed();
+		//			this.CurrentBuilder.UnIndent();
+		//		}
+
 		//Node.BodyNode.Accept(this);
 		this.CurrentBuilder.Indent();
 		this.CurrentBuilder.AppendIndent();
@@ -122,6 +153,16 @@ public class ErlSourceCodeGenerator extends ZSourceGenerator {
 		this.CurrentBuilder.AppendIndent();
 		this.GenerateTryNode(this.WhileNodeName,this.WhileNodeName);
 
+		//		this.CurrentBuilder.Append(",");
+		//		this.CurrentBuilder.AppendLineFeed();
+		//		for (String var : this.Variables) {
+		//			this.CurrentBuilder.Indent();
+		//			this.CurrentBuilder.AppendIndent();
+		//			this.CurrentBuilder.Append(var.toUpperCase() + this.VarMap.get(var) +" = get("+var+"),");
+		//			this.CurrentBuilder.AppendLineFeed();
+		//			this.CurrentBuilder.UnIndent();
+		//		}
+
 		//		this.flag_while = 0;
 		//		this.flag_period += 1;
 	}
@@ -131,16 +172,18 @@ public class ErlSourceCodeGenerator extends ZSourceGenerator {
 	}
 
 	@Override public void VisitIfNode(ZIfNode Node) {
-		this.count_Cond += 1;
-		ZComparatorNode condnode = (ZComparatorNode)Node.CondNode;
-		this.CurrentBuilder.Append("Ln_"+this.count_Cond+" = ");
-		condnode.LeftNode.Accept(this);
-		this.CurrentBuilder.Append(",");
-		this.CurrentBuilder.Append("Rn_"+this.count_Cond+" = ");
-		condnode.RightNode.Accept(this);
-		this.CurrentBuilder.Append(",");
+		//		this.count_Cond += 1;
+		//		ZComparatorNode condnode = (ZComparatorNode)Node.CondNode;
+		//	this.CurrentBuilder.Append("Ln_"+this.count_Cond+" = ");
+		//		condnode.LeftNode.Accept(this);
+		//		this.CurrentBuilder.Append(",");
+		//this.CurrentBuilder.Append("Rn_"+this.count_Cond+" = ");
+		//		condnode.RightNode.Accept(this);
+		//		this.CurrentBuilder.Append(",");
+		//this.CurrentBuilder.AppendLineFeed();
+		this.if_flag = 1;
+		this.VarCloneMap.putAll(this.VarMap);
 
-		this.CurrentBuilder.AppendLineFeed();
 		this.CurrentBuilder.Append("if");
 		this.CurrentBuilder.AppendLineFeed();
 		this.CurrentBuilder.AppendIndent();
@@ -162,6 +205,7 @@ public class ErlSourceCodeGenerator extends ZSourceGenerator {
 		}
 		this.CurrentBuilder.AppendIndent();
 		this.CurrentBuilder.Append("end");
+		this.if_flag = 0;
 	}
 
 	public void VisitElseIfNode(ZIfNode Node) {
@@ -188,7 +232,6 @@ public class ErlSourceCodeGenerator extends ZSourceGenerator {
 	}
 
 	public void VisitElseNode(ZBlockNode Node) {
-		//this.flag_case = 0;
 		this.CurrentBuilder.AppendIndent();
 		this.CurrentBuilder.Append("true ->");
 		this.CurrentBuilder.AppendLineFeed();
@@ -224,20 +267,22 @@ public class ErlSourceCodeGenerator extends ZSourceGenerator {
 
 
 	@Override public void VisitReturnNode(ZReturnNode Node) {
+		this.flag_return = 1;
 		this.CurrentBuilder.Append("throw(");
 		this.GenerateCode(Node.ValueNode);
 		this.CurrentBuilder.Append(")");
+		this.flag_return = 0;
 	}
 
 
 	@Override public void VisitComparatorNode(ZComparatorNode Node) {
 		//		ZGetLocalNode leftnode = (ZGetLocalNode)Node.LeftNode;
 		//		this.CurrentBuilder.Append(leftnode.VarName.toUpperCase());
-		//this.GenerateCode(Node.LeftNode);
-		this.CurrentBuilder.Append("Ln_"+this.count_Cond);
+		this.GenerateCode(Node.LeftNode);
+		//		this.CurrentBuilder.Append("Ln_"+this.count_Cond);
 		this.CurrentBuilder.AppendToken(Node.SourceToken.ParsedText);
-		this.CurrentBuilder.Append("Rn_"+this.count_Cond);
-		//		this.GenerateCode(Node.RightNode);
+		//		this.CurrentBuilder.Append("Rn_"+this.count_Cond);
+		this.GenerateCode(Node.RightNode);
 	}
 
 	@Override
@@ -246,23 +291,42 @@ public class ErlSourceCodeGenerator extends ZSourceGenerator {
 			this.CurrentBuilder.Append(Node.VarName);
 			return;
 		}
-		this.CurrentBuilder.Append("get(");
-		this.CurrentBuilder.Append(Node.VarName);
-		this.CurrentBuilder.Append(")");
+		if(this.if_flag == 1){
+			if(this.flag_return == 1){
+				this.CurrentBuilder.Append(Node.VarName.toUpperCase()+this.VarMap.get(Node.VarName));
+			}else{
+				this.CurrentBuilder.Append(Node.VarName.toUpperCase()+this.VarCloneMap.get(Node.VarName));
+				//			this.VarNumber = this.VarCloneMap.get(Node.VarName) + 1;
+				//			this.VarCloneMap.put(Node.VarName,this.VarNumber);
+			}
+		}else{
+			this.CurrentBuilder.Append(Node.VarName.toUpperCase()+this.VarMap.get(Node.VarName));
+		}
+		//		this.CurrentBuilder.Append("get(");
+		//		this.CurrentBuilder.Append(Node.VarName);
+		//		this.CurrentBuilder.Append(")");
 	}
 
 	@Override
 	public void VisitSetLocalNode(ZSetLocalNode Node) {
-		this.CurrentBuilder.Append("put(");
-		this.CurrentBuilder.Append(Node.VarName);
-		this.CurrentBuilder.Append(",");
-		//		this.CurrentBuilder.Append(Node.VarName);
-		//		this.CurrentBuilder.AppendToken("=");
+		if(!this.VarMap.containsKey(Node.VarName)){
+			this.VarNumber = 0;
+		}else{
+			this.VarNumber = this.VarMap.get(Node.VarName);
+			this.VarNumber++;
+		}
+		this.CurrentBuilder.Append(Node.VarName.toUpperCase()+this.VarNumber);
+		this.CurrentBuilder.AppendToken("=");
 		this.GenerateCode(Node.ValueNode);
-		this.CurrentBuilder.Append(")");
+		this.VarMap.put(Node.VarName,this.VarNumber);
+		//		this.CurrentBuilder.Append("put(");
+		//		this.CurrentBuilder.Append(Node.VarName);
+		//		this.CurrentBuilder.Append(",");
+		//		//		this.CurrentBuilder.Append(Node.VarName);
+		//		//		this.CurrentBuilder.AppendToken("=");
+		//		this.GenerateCode(Node.ValueNode);
+		//		this.CurrentBuilder.Append(")");
 	}
-
-
 
 	@Override
 	public void VisitBlockNode(ZBlockNode Node) {
