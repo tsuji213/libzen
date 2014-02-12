@@ -28,11 +28,13 @@ public class ErlSourceCodeGenerator extends ZSourceGenerator {
 	private int WhileNodeNumber = 0;
 	private String WhileNodeName;
 	//	private int count_Cond;
-	private int VarNumber;
+	private int VarNumber = 0;
 	HashMap<String,Integer> VarMap = new HashMap<String,Integer>();
 	HashMap<String,Integer> VarCloneMap = new HashMap<String,Integer>(this.VarMap);
 	private int if_flag = 0;
 	private int flag_return = 0;
+	ZNode leftnode;
+	ZNode rightnode;
 
 
 	public ErlSourceCodeGenerator/*constructor*/() {
@@ -65,9 +67,9 @@ public class ErlSourceCodeGenerator extends ZSourceGenerator {
 			this.CurrentBuilder.Append(param.Name.toUpperCase());
 			this.CurrentBuilder.Append(",");
 			this.CurrentBuilder.AppendLineFeed();
-			this.CurrentBuilder.AppendIndent();
-			this.CurrentBuilder.Append("put("+param.Name+","+param.Name.toUpperCase()+"),");
-			this.CurrentBuilder.AppendLineFeed();
+			//this.CurrentBuilder.AppendIndent();
+			//this.CurrentBuilder.Append("put("+param.Name+","+param.Name.toUpperCase()+"),");
+			//this.CurrentBuilder.AppendLineFeed();
 			this.CurrentBuilder.UnIndent();
 			this.VarMap.put(param.Name,0);
 			this.Variables.add(param.Name);
@@ -88,6 +90,15 @@ public class ErlSourceCodeGenerator extends ZSourceGenerator {
 		this.CurrentBuilder.Indent();
 		this.CurrentBuilder.AppendIndent();
 		this.GenerateTryNode("main",Node);
+		this.CurrentBuilder.Append(".");
+
+		this.CurrentBuilder.AppendLineFeed();
+		this.CurrentBuilder.AppendLineFeed();
+		this.CurrentBuilder.Append("tryfunc(F,Ln,Rn) ->");
+		this.CurrentBuilder.AppendLineFeed();
+		this.CurrentBuilder.Indent();
+		this.CurrentBuilder.AppendIndent();
+		this.GenerateTryNode("F","Ln","Rn");
 		this.CurrentBuilder.Append(".");
 
 		System.out.println(this.CurrentBuilder);
@@ -116,8 +127,9 @@ public class ErlSourceCodeGenerator extends ZSourceGenerator {
 		//		this.flag_while = 1;
 		this.WhileNodeNumber += 1;
 		this.WhileNodeName = "F_"+Integer.toString(this.WhileNodeNumber);
-		this.CurrentBuilder.Append(this.WhileNodeName + " = fun("+this.WhileNodeName+") when ");
-		Node.CondNode.Accept(this);
+		this.CurrentBuilder.Append(this.WhileNodeName + " = fun(F,Ln,Rn) when ");
+		this.VisitWhileComparatorNode((ZComparatorNode) Node.CondNode);
+		//Node.CondNode.Accept(this);
 		this.CurrentBuilder.Append(" ->");
 		this.CurrentBuilder.AppendLineFeed();
 		//		this.CurrentBuilder.AppendIndent();
@@ -140,18 +152,46 @@ public class ErlSourceCodeGenerator extends ZSourceGenerator {
 		//			this.CurrentBuilder.UnIndent();
 		//		}
 
+
+		this.CurrentBuilder.AppendIndent();
+		this.CurrentBuilder.Append("Ln_loop = ");
+		this.GenerateCode(this.leftnode);
+		this.CurrentBuilder.Append(" , ");
+		this.CurrentBuilder.Append("Rn_loop = ");
+		this.GenerateCode(this.rightnode);
+		this.CurrentBuilder.Append(",");
+
+		this.CurrentBuilder.AppendLineFeed();
+		this.CurrentBuilder.AppendIndent();
+		this.CurrentBuilder.Append("F(F,Ln_loop,Rn_loop),");
+		//		this.CurrentBuilder.Append("tryfunc("+this.WhileNodeName+",Ln_loop,Rn_loop),");
+
 		//Node.BodyNode.Accept(this);
 		this.CurrentBuilder.Indent();
-		this.CurrentBuilder.AppendIndent();
-		this.CurrentBuilder.Append(this.WhileNodeName + "("+this.WhileNodeName+")");
+		//		this.CurrentBuilder.AppendIndent();
+		//		this.CurrentBuilder.Append(this.WhileNodeName + "("+this.WhileNodeName+",Ln_loop,Rn_loop),");
 		this.CurrentBuilder.AppendLineFeed();
 		this.CurrentBuilder.UnIndent();
 		this.CurrentBuilder.AppendIndent();
 		this.CurrentBuilder.Append("end,");
 
 		this.CurrentBuilder.AppendLineFeed();
+		this.CurrentBuilder.AppendLineFeed();
 		this.CurrentBuilder.AppendIndent();
-		this.GenerateTryNode(this.WhileNodeName,this.WhileNodeName);
+		this.CurrentBuilder.Append("Ln_in = ");
+		this.GenerateCode(this.leftnode);
+		this.CurrentBuilder.Append(" , ");
+		this.CurrentBuilder.Append("Rn_in = ");
+		this.GenerateCode(this.rightnode);
+		this.CurrentBuilder.Append(",");
+
+		this.CurrentBuilder.AppendLineFeed();
+		this.CurrentBuilder.AppendIndent();
+		this.CurrentBuilder.Append("F(F,Ln_in,Rn_in)");
+
+		//		this.CurrentBuilder.Append("tryfunc("+this.WhileNodeName+",Ln_loop,Rn_loop),");
+
+		//this.GenerateTryNode(this.WhileNodeName,this.WhileNodeName,"Ln_loop","Rn_loop");
 
 		//		this.CurrentBuilder.Append(",");
 		//		this.CurrentBuilder.AppendLineFeed();
@@ -162,9 +202,6 @@ public class ErlSourceCodeGenerator extends ZSourceGenerator {
 		//			this.CurrentBuilder.AppendLineFeed();
 		//			this.CurrentBuilder.UnIndent();
 		//		}
-
-		//		this.flag_while = 0;
-		//		this.flag_period += 1;
 	}
 
 	@Override public void VisitBreakNode(ZBreakNode Node) {
@@ -275,15 +312,29 @@ public class ErlSourceCodeGenerator extends ZSourceGenerator {
 	}
 
 
-	@Override public void VisitComparatorNode(ZComparatorNode Node) {
-		//		ZGetLocalNode leftnode = (ZGetLocalNode)Node.LeftNode;
-		//		this.CurrentBuilder.Append(leftnode.VarName.toUpperCase());
-		this.GenerateCode(Node.LeftNode);
-		//		this.CurrentBuilder.Append("Ln_"+this.count_Cond);
+	public void VisitWhileComparatorNode(ZComparatorNode Node) {
+		this.leftnode = Node.LeftNode;
+		//this.CurrentBuilder.Append(this.leftnode.VarName.toUpperCase());
+		this.rightnode = Node.RightNode;
+		//this.CurrentBuilder.Append(this.leftnode.VarName.toUpperCase());
+		//		this.GenerateCode(Node.LeftNode);
+		this.CurrentBuilder.Append("Ln");
 		this.CurrentBuilder.AppendToken(Node.SourceToken.ParsedText);
-		//		this.CurrentBuilder.Append("Rn_"+this.count_Cond);
-		this.GenerateCode(Node.RightNode);
+		this.CurrentBuilder.Append("Rn");
+		//		this.GenerateCode(Node.RightNode);
 	}
+
+	//	@Override public void VisitComparatorNode(ZComparatorNode Node) {
+	//		this.leftnode = Node.LeftNode;
+	//		//this.CurrentBuilder.Append(this.leftnode.VarName.toUpperCase());
+	//		this.rightnode = Node.RightNode;
+	//		//this.CurrentBuilder.Append(this.leftnode.VarName.toUpperCase());
+	//		//		this.GenerateCode(Node.LeftNode);
+	//		this.CurrentBuilder.Append("Ln");
+	//		this.CurrentBuilder.AppendToken(Node.SourceToken.ParsedText);
+	//		this.CurrentBuilder.Append("Rn");
+	//		//		this.GenerateCode(Node.RightNode);
+	//	}
 
 	@Override
 	public void VisitGetLocalNode(ZGetLocalNode Node) {
@@ -396,8 +447,8 @@ public class ErlSourceCodeGenerator extends ZSourceGenerator {
 		this.CurrentBuilder.UnIndent();
 	}
 
-	private void GenerateTryNode(String FunctionName,String arg){
-		this.CurrentBuilder.Append("try "+ FunctionName + "("+arg+") of");
+	private void GenerateTryNode(String FunctionName,String LeftNode,String RightNode){
+		this.CurrentBuilder.Append("try "+ FunctionName + "("+FunctionName+","+LeftNode+","+RightNode+") of");
 		this.CurrentBuilder.AppendLineFeed();
 		this.CurrentBuilder.Indent();
 		this.CurrentBuilder.AppendIndent();
