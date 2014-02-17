@@ -2,6 +2,7 @@ package zen.codegen.erlang;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Stack;
 
 import zen.ast.ZBinaryNode;
 import zen.ast.ZBlockNode;
@@ -19,7 +20,7 @@ import zen.ast.ZReturnNode;
 import zen.ast.ZSetLocalNode;
 import zen.ast.ZWhileNode;
 import zen.parser.ZSourceGenerator;
-
+@SuppressWarnings("unchecked")
 public class ErlSourceCodeGenerator extends ZSourceGenerator {
 	public ArrayList <String> Variables;
 	//	public ZNode[] NodeList = new ZNode[10];
@@ -27,15 +28,14 @@ public class ErlSourceCodeGenerator extends ZSourceGenerator {
 	//	public int NodeListKey = 0;
 	private int WhileNodeNumber = 0;
 	private String WhileNodeName;
-	//	private int count_Cond;
 	private int VarNumber = 0;
-	HashMap<String,Integer> VarMap = new HashMap<String,Integer>();
-	HashMap<String,Integer> VarCloneMap = new HashMap<String,Integer>(this.VarMap);
-	private int if_flag = 0;
+	HashMap<String,Object> VarMap = new HashMap<String,Object>();
+	//	Stack VarStack = new Stack();
+	//HashMap<String,Integer> VarCloneMap = new HashMap<String,Integer>(this.VarMap);
+	private int ifdepthlevel = 0;
 	private int flag_return = 0;
 	ZNode leftnode;
 	ZNode rightnode;
-
 
 	public ErlSourceCodeGenerator/*constructor*/() {
 		super("erlang","5.10.4");
@@ -67,15 +67,13 @@ public class ErlSourceCodeGenerator extends ZSourceGenerator {
 			this.CurrentBuilder.Append(param.Name.toUpperCase());
 			this.CurrentBuilder.Append(",");
 			this.CurrentBuilder.AppendLineFeed();
-			//this.CurrentBuilder.AppendIndent();
-			//this.CurrentBuilder.Append("put("+param.Name+","+param.Name.toUpperCase()+"),");
-			//this.CurrentBuilder.AppendLineFeed();
 			this.CurrentBuilder.UnIndent();
-			this.VarMap.put(param.Name,0);
+			this.VarMap.put(param.Name,new Stack<Object>());
+			((Stack<Object>) this.VarMap.get(param.Name)).push(this.VarNumber);
 			this.Variables.add(param.Name);
 			i += 1;
 		}
-		this.VarNumber++;
+		//		this.VarNumber++;
 
 		this.CurrentBuilder.AppendLineFeed();
 		this.GenerateCode(Node.BodyNode);
@@ -94,7 +92,7 @@ public class ErlSourceCodeGenerator extends ZSourceGenerator {
 
 		this.CurrentBuilder.AppendLineFeed();
 		this.CurrentBuilder.AppendLineFeed();
-		this.CurrentBuilder.Append("tryfunc(F,Ln,Rn) ->");
+		this.CurrentBuilder.Append("whileinfunc(F,Ln,Rn) ->");
 		this.CurrentBuilder.AppendLineFeed();
 		this.CurrentBuilder.Indent();
 		this.CurrentBuilder.AppendIndent();
@@ -126,50 +124,19 @@ public class ErlSourceCodeGenerator extends ZSourceGenerator {
 	public void VisitWhileNode(ZWhileNode Node) {
 		//		this.flag_while = 1;
 		this.WhileNodeNumber += 1;
-		this.WhileNodeName = "F_"+Integer.toString(this.WhileNodeNumber);
+		this.WhileNodeName = "WhileFunc_"+Integer.toString(this.WhileNodeNumber);
 		this.CurrentBuilder.Append(this.WhileNodeName + " = fun(F,Ln,Rn) when ");
 		this.VisitWhileComparatorNode((ZComparatorNode) Node.CondNode);
 		//Node.CondNode.Accept(this);
 		this.CurrentBuilder.Append(" ->");
 		this.CurrentBuilder.AppendLineFeed();
-		//		this.CurrentBuilder.AppendIndent();
-
-		//		for (String var : this.Variables) {
-		//			this.CurrentBuilder.Indent();
-		//			this.CurrentBuilder.AppendIndent();
-		//			this.CurrentBuilder.Append(var.toUpperCase() + this.VarMap.get(var) +" = get("+var+"),");
-		//			this.CurrentBuilder.AppendLineFeed();
-		//			this.CurrentBuilder.UnIndent();
-		//		}
 
 		this.VisitWhileBlockNode((ZBlockNode)Node.BodyNode);
 
-		//		for (String var : this.Variables) {
-		//			this.CurrentBuilder.Indent();
-		//			this.CurrentBuilder.AppendIndent();
-		//			this.CurrentBuilder.Append("put("+var+","+var.toUpperCase()+this.VarMap.get(var)+"),");
-		//			this.CurrentBuilder.AppendLineFeed();
-		//			this.CurrentBuilder.UnIndent();
-		//		}
-
-
 		this.CurrentBuilder.AppendIndent();
-		this.CurrentBuilder.Append("Ln_loop = ");
-		this.GenerateCode(this.leftnode);
-		this.CurrentBuilder.Append(" , ");
-		this.CurrentBuilder.Append("Rn_loop = ");
-		this.GenerateCode(this.rightnode);
-		this.CurrentBuilder.Append(",");
-
-		this.CurrentBuilder.AppendLineFeed();
-		this.CurrentBuilder.AppendIndent();
-		this.CurrentBuilder.Append("F(F,Ln_loop,Rn_loop),");
-		//		this.CurrentBuilder.Append("tryfunc("+this.WhileNodeName+",Ln_loop,Rn_loop),");
-
+		this.CurrentBuilder.Append("F(F,Ln_loop,Rn_loop)");
 		//Node.BodyNode.Accept(this);
 		this.CurrentBuilder.Indent();
-		//		this.CurrentBuilder.AppendIndent();
-		//		this.CurrentBuilder.Append(this.WhileNodeName + "("+this.WhileNodeName+",Ln_loop,Rn_loop),");
 		this.CurrentBuilder.AppendLineFeed();
 		this.CurrentBuilder.UnIndent();
 		this.CurrentBuilder.AppendIndent();
@@ -177,31 +144,9 @@ public class ErlSourceCodeGenerator extends ZSourceGenerator {
 
 		this.CurrentBuilder.AppendLineFeed();
 		this.CurrentBuilder.AppendLineFeed();
+
 		this.CurrentBuilder.AppendIndent();
-		this.CurrentBuilder.Append("Ln_in = ");
-		this.GenerateCode(this.leftnode);
-		this.CurrentBuilder.Append(" , ");
-		this.CurrentBuilder.Append("Rn_in = ");
-		this.GenerateCode(this.rightnode);
-		this.CurrentBuilder.Append(",");
-
-		this.CurrentBuilder.AppendLineFeed();
-		this.CurrentBuilder.AppendIndent();
-		this.CurrentBuilder.Append("F(F,Ln_in,Rn_in)");
-
-		//		this.CurrentBuilder.Append("tryfunc("+this.WhileNodeName+",Ln_loop,Rn_loop),");
-
-		//this.GenerateTryNode(this.WhileNodeName,this.WhileNodeName,"Ln_loop","Rn_loop");
-
-		//		this.CurrentBuilder.Append(",");
-		//		this.CurrentBuilder.AppendLineFeed();
-		//		for (String var : this.Variables) {
-		//			this.CurrentBuilder.Indent();
-		//			this.CurrentBuilder.AppendIndent();
-		//			this.CurrentBuilder.Append(var.toUpperCase() + this.VarMap.get(var) +" = get("+var+"),");
-		//			this.CurrentBuilder.AppendLineFeed();
-		//			this.CurrentBuilder.UnIndent();
-		//		}
+		this.CurrentBuilder.Append("whileinfunc("+this.WhileNodeName+",Ln_in,Rn_in)");
 	}
 
 	@Override public void VisitBreakNode(ZBreakNode Node) {
@@ -209,17 +154,14 @@ public class ErlSourceCodeGenerator extends ZSourceGenerator {
 	}
 
 	@Override public void VisitIfNode(ZIfNode Node) {
-		//		this.count_Cond += 1;
-		//		ZComparatorNode condnode = (ZComparatorNode)Node.CondNode;
-		//	this.CurrentBuilder.Append("Ln_"+this.count_Cond+" = ");
-		//		condnode.LeftNode.Accept(this);
-		//		this.CurrentBuilder.Append(",");
-		//this.CurrentBuilder.Append("Rn_"+this.count_Cond+" = ");
-		//		condnode.RightNode.Accept(this);
-		//		this.CurrentBuilder.Append(",");
-		//this.CurrentBuilder.AppendLineFeed();
-		this.if_flag = 1;
-		this.VarCloneMap.putAll(this.VarMap);
+		//HashMap<String,Object> hoge = new HashMap<String,Object>();
+		//hoge.put("a","a");
+		this.ifdepthlevel ++;
+		for(String var: this.Variables){
+			int varams = (Integer) ((Stack<Object>) this.VarMap.get(var)).peek();
+			((Stack<Object>) this.VarMap.get(var)).push(varams);
+		}
+		//this.VarCloneMap.putAll(this.VarMap);
 
 		this.CurrentBuilder.Append("if");
 		this.CurrentBuilder.AppendLineFeed();
@@ -242,10 +184,20 @@ public class ErlSourceCodeGenerator extends ZSourceGenerator {
 		}
 		this.CurrentBuilder.AppendIndent();
 		this.CurrentBuilder.Append("end");
-		this.if_flag = 0;
+		//		for(String var: this.Variables){
+		//			((Stack<Object>) this.VarMap.get(var)).pop();
+		//		}
+		this.ifdepthlevel = 0;
 	}
 
 	public void VisitElseIfNode(ZIfNode Node) {
+		this.ifdepthlevel = 1;
+		for(String var: this.Variables){
+			((Stack<Object>) this.VarMap.get(var)).pop();
+			int varams = (Integer) ((Stack<Object>) this.VarMap.get(var)).peek();
+			((Stack<Object>) this.VarMap.get(var)).push(varams);
+		}
+		//this.VarCloneMap.putAll(this.VarMap);
 		this.CurrentBuilder.AppendIndent();
 		Node.CondNode.Accept(this);
 		this.CurrentBuilder.Append(" ->");
@@ -266,6 +218,7 @@ public class ErlSourceCodeGenerator extends ZSourceGenerator {
 			this.CurrentBuilder.Append("true -> ok");
 			this.CurrentBuilder.AppendLineFeed();
 		}
+		this.ifdepthlevel = 0;
 	}
 
 	public void VisitElseNode(ZBlockNode Node) {
@@ -283,18 +236,6 @@ public class ErlSourceCodeGenerator extends ZSourceGenerator {
 	@Override public void VisitNullNode(ZNullNode Node) {
 		this.CurrentBuilder.Append(this.NullLiteral);
 	}
-	//		@Override public void VisitLocalNode(ZLocalNode Node) {
-	//			this.CurrentBuilder.Append(Node.Token.ParsedText.toUpperCase());
-	//		}
-
-	//		@Override public void VisitStaticApplyNode(ZStaticApplyNode Node) {
-	//			this.CurrentBuilder.Append(Node.Func.GetNativeFuncName());
-	//			this.CurrentBuilder.Append("(");
-	//			for(/*local*/int i = 0; i < LibGreenTea.ListSize(Node.ParamList); i++){
-	//				Node.ParamList.get(i).Evaluate(this);
-	//			}
-	//			this.CurrentBuilder.Append(")");
-	//		}
 
 	@Override public void VisitBinaryNode(ZBinaryNode Node) {
 		Node.LeftNode.Accept(this);
@@ -310,7 +251,6 @@ public class ErlSourceCodeGenerator extends ZSourceGenerator {
 		this.CurrentBuilder.Append(")");
 		this.flag_return = 0;
 	}
-
 
 	public void VisitWhileComparatorNode(ZComparatorNode Node) {
 		this.leftnode = Node.LeftNode;
@@ -342,41 +282,40 @@ public class ErlSourceCodeGenerator extends ZSourceGenerator {
 			this.CurrentBuilder.Append(Node.VarName);
 			return;
 		}
-		if(this.if_flag == 1){
+		if(this.ifdepthlevel > 0){
 			if(this.flag_return == 1){
-				this.CurrentBuilder.Append(Node.VarName.toUpperCase()+this.VarMap.get(Node.VarName));
+				this.CurrentBuilder.Append(Node.VarName.toUpperCase()+((Stack<Object>) this.VarMap.get(Node.VarName)).peek());
 			}else{
-				this.CurrentBuilder.Append(Node.VarName.toUpperCase()+this.VarCloneMap.get(Node.VarName));
-				//			this.VarNumber = this.VarCloneMap.get(Node.VarName) + 1;
-				//			this.VarCloneMap.put(Node.VarName,this.VarNumber);
+				this.CurrentBuilder.Append(Node.VarName.toUpperCase()+((Stack<Object>) this.VarMap.get(Node.VarName)).peek());
+				//this.CurrentBuilder.Append(Node.VarName.toUpperCase()+this.VarCloneMap.get(Node.VarName));
+				//				this.VarNumber = this.VarCloneMap.get(Node.VarName) + 1;
+				//			this.VarMap.put(Node.VarName,);
 			}
 		}else{
-			this.CurrentBuilder.Append(Node.VarName.toUpperCase()+this.VarMap.get(Node.VarName));
+			this.CurrentBuilder.Append(Node.VarName.toUpperCase()+((Stack<Object>) this.VarMap.get(Node.VarName)).peek());
 		}
-		//		this.CurrentBuilder.Append("get(");
-		//		this.CurrentBuilder.Append(Node.VarName);
-		//		this.CurrentBuilder.Append(")");
 	}
 
 	@Override
 	public void VisitSetLocalNode(ZSetLocalNode Node) {
-		if(!this.VarMap.containsKey(Node.VarName)){
-			this.VarNumber = 0;
-		}else{
-			this.VarNumber = this.VarMap.get(Node.VarName);
-			this.VarNumber++;
-		}
+		this.VarNumber = (Integer) ((Stack<?>) this.VarMap.get(Node.VarName)).peek();
+		this.VarNumber++;
 		this.CurrentBuilder.Append(Node.VarName.toUpperCase()+this.VarNumber);
 		this.CurrentBuilder.AppendToken("=");
 		this.GenerateCode(Node.ValueNode);
-		this.VarMap.put(Node.VarName,this.VarNumber);
-		//		this.CurrentBuilder.Append("put(");
-		//		this.CurrentBuilder.Append(Node.VarName);
-		//		this.CurrentBuilder.Append(",");
-		//		//		this.CurrentBuilder.Append(Node.VarName);
-		//		//		this.CurrentBuilder.AppendToken("=");
-		//		this.GenerateCode(Node.ValueNode);
-		//		this.CurrentBuilder.Append(")");
+		if(!this.VarMap.containsKey(Node.VarName)){
+			this.VarNumber = 0;
+			this.VarMap.put(Node.VarName,new Stack<Object>());
+			//((Stack<Object>) this.VarMap.get(Node.VarName)).push(this.VarNumber);
+		}else{
+			this.VarNumber = (Integer) ((Stack<?>) this.VarMap.get(Node.VarName)).pop();
+			this.VarNumber++;
+			//((Stack<Object>) this.VarMap.get(Node.VarName)).push(this.VarNumber);
+			//			this.VarNumber = this.VarMap.get(Node.VarName);
+			//			this.VarNumber++;
+		}
+		((Stack<Object>) this.VarMap.get(Node.VarName)).push(this.VarNumber);
+		//this.VarMap.put(Node.VarName,this.VarNumber);
 	}
 
 	@Override
@@ -561,10 +500,10 @@ public class ErlSourceCodeGenerator extends ZSourceGenerator {
 	//		this.CurrentBuilder.Append(" */");
 	//	}
 
-	//	@Override public void VisitUnaryNode(ZUnaryNode Node) {
-	//		this.CurrentBuilder.Append(Node.Token.ParsedText);
-	//		Node.Expr.Evaluate(this);
-	//	}
+	//		@Override public void VisitUnaryNode(ZUnaryNode Node) {
+	//			this.CurrentBuilder.Append(Node.Token.ParsedText);
+	//			Node.Expr.Evaluate(this);
+	//		}
 
 	//	@Override
 	//	public void VisitBlockNode(ZBlockNode Node) {
