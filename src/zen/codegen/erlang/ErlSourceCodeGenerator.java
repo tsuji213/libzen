@@ -20,7 +20,9 @@ import zen.ast.ZReturnNode;
 import zen.ast.ZSetLocalNode;
 import zen.ast.ZWhileNode;
 import zen.parser.ZSourceGenerator;
+
 @SuppressWarnings("unchecked")
+
 public class ErlSourceCodeGenerator extends ZSourceGenerator {
 	public ArrayList <String> Variables;
 	//	public ZNode[] NodeList = new ZNode[10];
@@ -157,11 +159,14 @@ public class ErlSourceCodeGenerator extends ZSourceGenerator {
 		//HashMap<String,Object> hoge = new HashMap<String,Object>();
 		//hoge.put("a","a");
 		this.ifdepthlevel ++;
-		for(String var: this.Variables){
+		for(String var: this.Variables) {
 			int varams = (Integer) ((Stack<Object>) this.VarMap.get(var)).peek();
 			((Stack<Object>) this.VarMap.get(var)).push(varams);
 		}
 		//this.VarCloneMap.putAll(this.VarMap);
+
+		this.CurrentBuilder.Append(null); //add dummy element
+		int current_pos = this.CurrentBuilder.SourceList.size() - 1;
 
 		this.CurrentBuilder.Append("if");
 		this.CurrentBuilder.AppendLineFeed();
@@ -188,6 +193,8 @@ public class ErlSourceCodeGenerator extends ZSourceGenerator {
 		//			((Stack<Object>) this.VarMap.get(var)).pop();
 		//		}
 		this.ifdepthlevel = 0;
+
+		this.CurrentBuilder.SourceList.set(current_pos, this.GenVarTuple() + " = ");
 	}
 
 	public void VisitElseIfNode(ZIfNode Node) {
@@ -719,5 +726,17 @@ public class ErlSourceCodeGenerator extends ZSourceGenerator {
 	//	@Override public void VisitCommandNode(ZCommandNode Node) {
 	//		this.DebugAppendNode(Node);
 	//	}
+	String GenVarTuple() {
+		String ret = "{";
+		for(String var: this.Variables) {
+			int num = (Integer)((((Stack<?>)this.VarMap.get(var))).pop());
+			num++;
+			((Stack<Object>) this.VarMap.get(var)).push(num);
+			ret += var.toUpperCase();
+			ret += num;
+		}
+		ret += "}";
+		return ret;
+	}
 }
 
