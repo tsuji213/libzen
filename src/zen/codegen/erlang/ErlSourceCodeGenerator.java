@@ -58,6 +58,7 @@ public class ErlSourceCodeGenerator extends ZSourceGenerator {
 		this.CurrentBuilder.Append("->");
 		this.CurrentBuilder.AppendLineFeed();
 
+
 		int size = Node.ArgumentList.size();
 		int i=0;
 		while(i < size) {
@@ -94,11 +95,11 @@ public class ErlSourceCodeGenerator extends ZSourceGenerator {
 
 		this.CurrentBuilder.AppendLineFeed();
 		this.CurrentBuilder.AppendLineFeed();
-		this.CurrentBuilder.Append("whileinfunc(F,Ln,Rn) ->");
+		this.CurrentBuilder.Append("whileinfunc(F, Args) ->");
 		this.CurrentBuilder.AppendLineFeed();
 		this.CurrentBuilder.Indent();
 		this.CurrentBuilder.AppendIndent();
-		this.GenerateTryNode("F","Ln","Rn");
+		this.GenerateTryNode("F");
 		this.CurrentBuilder.Append(".");
 
 		System.out.println(this.CurrentBuilder);
@@ -126,8 +127,13 @@ public class ErlSourceCodeGenerator extends ZSourceGenerator {
 	public void VisitWhileNode(ZWhileNode Node) {
 		//		this.flag_while = 1;
 		this.WhileNodeNumber += 1;
+		for (int i = 0; i < this.Variables.size(); i++) {
+			String var = this.Variables.get(i);
+			int num = (Integer)((((Stack<?>)this.VarMap.get(var))).peek());
+			((Stack<Object>) this.VarMap.get(var)).push(num);
+		}
 		this.WhileNodeName = "WhileFunc_"+Integer.toString(this.WhileNodeNumber);
-		this.CurrentBuilder.Append(this.WhileNodeName + " = fun(F,Ln,Rn) when ");
+		this.CurrentBuilder.Append(this.WhileNodeName + " = fun(F, " + this.GenVarTuple(true) + ") when ");
 		this.VisitWhileComparatorNode((ZComparatorNode) Node.CondNode);
 		//Node.CondNode.Accept(this);
 		this.CurrentBuilder.Append(" ->");
@@ -136,19 +142,37 @@ public class ErlSourceCodeGenerator extends ZSourceGenerator {
 		this.VisitWhileBlockNode((ZBlockNode)Node.BodyNode);
 
 		this.CurrentBuilder.AppendIndent();
-		this.CurrentBuilder.Append("F(F,Ln_loop,Rn_loop)");
+		this.CurrentBuilder.AppendIndent();
+		this.CurrentBuilder.Append("F(F," + this.GenVarTuple(false) + ");");
 		//Node.BodyNode.Accept(this);
 		this.CurrentBuilder.Indent();
 		this.CurrentBuilder.AppendLineFeed();
 		this.CurrentBuilder.UnIndent();
 		this.CurrentBuilder.AppendIndent();
+
+		this.CurrentBuilder.AppendIndent();
+		this.CurrentBuilder.Append("(F, Args) -> Args");
+		this.CurrentBuilder.AppendLineFeed();
+
 		this.CurrentBuilder.Append("end,");
 
 		this.CurrentBuilder.AppendLineFeed();
 		this.CurrentBuilder.AppendLineFeed();
 
 		this.CurrentBuilder.AppendIndent();
-		this.CurrentBuilder.Append("whileinfunc("+this.WhileNodeName+",Ln_in,Rn_in)");
+		this.CurrentBuilder.Append(this.GenVarTuple(true) + " = ");
+		for (int i = 0; i < this.Variables.size(); i++) {
+			String var = this.Variables.get(i);
+			int num1 = (Integer)((((Stack<?>)this.VarMap.get(var))).pop());
+			int num2 = (Integer)((((Stack<?>)this.VarMap.get(var))).pop());
+			((Stack<Object>) this.VarMap.get(var)).push(num1);
+			((Stack<Object>) this.VarMap.get(var)).push(num2);
+		}
+		this.CurrentBuilder.Append(this.WhileNodeName + "(" + this.WhileNodeName + ", " + this.GenVarTuple(false) + ")");
+		for (int i = 0; i < this.Variables.size(); i++) {
+			String var = this.Variables.get(i);
+			(((Stack<?>)this.VarMap.get(var))).pop();
+		}
 	}
 
 	@Override public void VisitBreakNode(ZBreakNode Node) {
@@ -194,7 +218,7 @@ public class ErlSourceCodeGenerator extends ZSourceGenerator {
 		//		}
 		this.ifdepthlevel = 0;
 
-		this.CurrentBuilder.SourceList.set(current_pos, this.GenVarTuple() + " = ");
+		this.CurrentBuilder.SourceList.set(current_pos, this.GenVarTuple(true) + " = ");
 	}
 
 	public void VisitElseIfNode(ZIfNode Node) {
@@ -232,6 +256,11 @@ public class ErlSourceCodeGenerator extends ZSourceGenerator {
 		this.CurrentBuilder.AppendIndent();
 		this.CurrentBuilder.Append("true ->");
 		this.CurrentBuilder.AppendLineFeed();
+		for(String var: this.Variables){
+			((Stack<Object>) this.VarMap.get(var)).pop();
+			int varams = (Integer) ((Stack<Object>) this.VarMap.get(var)).peek();
+			((Stack<Object>) this.VarMap.get(var)).push(varams);
+		}
 		this.VisitFinishPetternBlockNode(Node);
 		//Node.Accept(this);
 	}
@@ -260,15 +289,9 @@ public class ErlSourceCodeGenerator extends ZSourceGenerator {
 	}
 
 	public void VisitWhileComparatorNode(ZComparatorNode Node) {
-		this.leftnode = Node.LeftNode;
-		//this.CurrentBuilder.Append(this.leftnode.VarName.toUpperCase());
-		this.rightnode = Node.RightNode;
-		//this.CurrentBuilder.Append(this.leftnode.VarName.toUpperCase());
-		//		this.GenerateCode(Node.LeftNode);
-		this.CurrentBuilder.Append("Ln");
+		this.GenerateCode(Node.LeftNode);
 		this.CurrentBuilder.AppendToken(Node.SourceToken.ParsedText);
-		this.CurrentBuilder.Append("Rn");
-		//		this.GenerateCode(Node.RightNode);
+		this.GenerateCode(Node.RightNode);
 	}
 
 	//	@Override public void VisitComparatorNode(ZComparatorNode Node) {
@@ -351,6 +374,7 @@ public class ErlSourceCodeGenerator extends ZSourceGenerator {
 			ZNode SubNode = Node.StmtList.get(i);
 			this.CurrentBuilder.AppendIndent();
 			this.GenerateCode(SubNode);
+			this.CurrentBuilder.Append(", " + this.GenVarTuple(false));
 			if(i == limit-1){
 				this.CurrentBuilder.Append(";");
 				this.CurrentBuilder.AppendLineFeed();
@@ -369,6 +393,7 @@ public class ErlSourceCodeGenerator extends ZSourceGenerator {
 			ZNode SubNode = Node.StmtList.get(i);
 			this.CurrentBuilder.AppendIndent();
 			this.GenerateCode(SubNode);
+			this.CurrentBuilder.Append(", " + this.GenVarTuple(false));
 			if(i == limit-1){
 				this.CurrentBuilder.AppendLineFeed();
 			}else{
@@ -393,8 +418,8 @@ public class ErlSourceCodeGenerator extends ZSourceGenerator {
 		this.CurrentBuilder.UnIndent();
 	}
 
-	private void GenerateTryNode(String FunctionName,String LeftNode,String RightNode){
-		this.CurrentBuilder.Append("try "+ FunctionName + "("+FunctionName+","+LeftNode+","+RightNode+") of");
+	private void GenerateTryNode(String FunctionName) {
+		this.CurrentBuilder.Append("try "+ FunctionName + "("+FunctionName+", Args) of");
 		this.CurrentBuilder.AppendLineFeed();
 		this.CurrentBuilder.Indent();
 		this.CurrentBuilder.AppendIndent();
@@ -726,14 +751,19 @@ public class ErlSourceCodeGenerator extends ZSourceGenerator {
 	//	@Override public void VisitCommandNode(ZCommandNode Node) {
 	//		this.DebugAppendNode(Node);
 	//	}
-	String GenVarTuple() {
+	String GenVarTuple(boolean AddCounter) {
 		String ret = "{";
-		for(String var: this.Variables) {
+		int size = this.Variables.size();
+		for (int i = 0; i < size; i++) {
+			String var = this.Variables.get(i);
 			int num = (Integer)((((Stack<?>)this.VarMap.get(var))).pop());
-			num++;
+			if (AddCounter) {
+				num++;
+			}
 			((Stack<Object>) this.VarMap.get(var)).push(num);
 			ret += var.toUpperCase();
 			ret += num;
+			if (i < size - 1) ret += ", ";
 		}
 		ret += "}";
 		return ret;
