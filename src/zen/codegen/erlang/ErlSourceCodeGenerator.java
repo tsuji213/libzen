@@ -76,8 +76,6 @@ public class ErlSourceCodeGenerator extends ZSourceGenerator {
 
 		this.HeaderBuilder.Append("-module(generated).");
 		this.HeaderBuilder.AppendLineFeed();
-
-		//this.BodyBuilder.Append(this.GenWrapperFunc());
 	}
 
 	@Override public boolean StartCodeGeneration(ZNode Node,  boolean AllowLazy, boolean IsInteractive) {
@@ -85,6 +83,7 @@ public class ErlSourceCodeGenerator extends ZSourceGenerator {
 			return false;
 		}
 		Node.Accept(this);
+		this.HeaderBuilder.AppendLineFeed();
 		//if(IsInteractive) {
 		if (true) {//FIX ME!!
 			String Code = this.HeaderBuilder.toString() + this.BodyBuilder.toString();
@@ -311,13 +310,11 @@ public class ErlSourceCodeGenerator extends ZSourceGenerator {
 		this.CurrentBuilder.IndentAndAppend("end");
 	}
 
-	// @Override public void VisitReturnNode(ZReturnNode Node) {
-	// 	this.CurrentBuilder.Append("return");
-	// 	if (Node.ValueNode != null) {
-	// 		this.CurrentBuilder.AppendWhiteSpace();
-	// 		this.GenerateCode(Node.ValueNode);
-	// 	}
-	// }
+	@Override public void VisitReturnNode(ZReturnNode Node) {
+		this.CurrentBuilder.Append("throw(");
+		this.GenerateCode(Node.ValueNode);
+		this.CurrentBuilder.Append(")");
+	}
 
 	@Override public void VisitWhileNode(ZWhileNode Node) {
 		//add scope to varmap
@@ -336,7 +333,7 @@ public class ErlSourceCodeGenerator extends ZSourceGenerator {
 		this.CurrentBuilder.UnIndent();
 
 		this.CurrentBuilder.AppendLineFeed();
-		this.CurrentBuilder.IndentAndAppend("(F, Args) ->");
+		this.CurrentBuilder.IndentAndAppend("(_F, Args) ->");
 		this.CurrentBuilder.Indent();
 		this.CurrentBuilder.AppendLineFeed();
 		this.CurrentBuilder.IndentAndAppend("Args");
@@ -408,7 +405,7 @@ public class ErlSourceCodeGenerator extends ZSourceGenerator {
 	// }
 
 	@Override public void VisitParamNode(ZParamNode Node) {
-		this.BodyBuilder.Append(Node.Name);
+		this.CurrentBuilder.Append(Node.Name);
 	}
 
 	// @Override public void VisitFunctionNode(ZFunctionNode Node) {
@@ -425,15 +422,19 @@ public class ErlSourceCodeGenerator extends ZSourceGenerator {
 		this.HeaderBuilder.Append("-export([" + Node.FuncName + "/" + Node.ArgumentList.size() + "]).");
 		this.HeaderBuilder.AppendLineFeed();
 
-		this.BodyBuilder.Append(Node.FuncName);
+		this.CurrentBuilder.Append(Node.FuncName + "_inner");
 		this.VisitParamList("(", Node.ArgumentList, ")");
-		this.BodyBuilder.Append("->");
+		this.CurrentBuilder.Append("->");
 		if (Node.BodyNode == null) {
 			this.CurrentBuilder.AppendIndent();
 			this.CurrentBuilder.Append("pass.");
 		} else {
 			this.GenerateCode(Node.BodyNode);
 		}
+
+		this.CurrentBuilder.AppendLineFeed();
+		this.AppendWrapperFuncDecl(Node);
+		this.CurrentBuilder.AppendLineFeed();
 	}
 
 	// @Override public void VisitClassDeclNode(ZClassDeclNode Node) {
@@ -510,4 +511,30 @@ public class ErlSourceCodeGenerator extends ZSourceGenerator {
 	// public void VisitNewObjectNode(ZNewObjectNode Node) {
 	// 	// TODO Auto-generated method stub
 	// }
+
+	private void AppendWrapperFuncDecl(ZFuncDeclNode Node){
+		this.CurrentBuilder.Append(Node.FuncName);
+		this.VisitParamList("(", Node.ArgumentList, ")");
+		this.CurrentBuilder.Append(" ->");
+
+		this.CurrentBuilder.AppendLineFeed();
+		this.CurrentBuilder.Indent();
+		this.CurrentBuilder.IndentAndAppend("try "+ Node.FuncName + "_inner");
+		this.VisitParamList("(", Node.ArgumentList, ")");
+		this.CurrentBuilder.AppendToken("of");
+		this.CurrentBuilder.AppendLineFeed();
+		this.CurrentBuilder.Indent();
+		this.CurrentBuilder.IndentAndAppend("_ -> void");
+		this.CurrentBuilder.AppendLineFeed();
+		this.CurrentBuilder.UnIndent();
+		this.CurrentBuilder.IndentAndAppend("catch");
+		this.CurrentBuilder.AppendLineFeed();
+		this.CurrentBuilder.Indent();
+		this.CurrentBuilder.IndentAndAppend("throw:X -> X");
+		this.CurrentBuilder.AppendLineFeed();
+		this.CurrentBuilder.UnIndent();
+		this.CurrentBuilder.IndentAndAppend("end.");
+
+		this.CurrentBuilder.UnIndent();
+	}
 }
