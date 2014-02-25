@@ -13,10 +13,14 @@ import zen.deps.Field;
 public class VariableManager {
 	@Field private HashMap<String, Variable> CurrentMap;
 	@Field private ArrayList<HashMap<String, Variable>> MapList;
+	@Field private int filter;
+	@Field private boolean FilterOnlyUsed;
 
 	public VariableManager/*constructor*/() {
 		this.CurrentMap = new HashMap<String, Variable>();
 		this.MapList = new ArrayList<HashMap<String, Variable>>();
+		this.filter = 0;
+		this.FilterOnlyUsed = false;
 	}
 
 	Variable SearchVariable(String VarName) {
@@ -27,7 +31,7 @@ public class VariableManager {
 			do {
 				Var = MapList.get(i).get(VarName);
 				i = i - 1;
-			} while(i > 0 && Var != null);
+			} while(i >= 0 && Var == null);
 		}
 		return Var;
 	}
@@ -47,10 +51,16 @@ public class VariableManager {
 		Variable Var = this.SearchVariable(VarName);
 		String ret;
 		if (Var != null) {
-			if (Var.Read == -1) {
+			int read = Var.Read;
+			if (this.filter > 0
+				&& (!FilterOnlyUsed
+					|| (FilterOnlyUsed & Var.IsUsed))) {
+				read += filter;
+			}
+			if (read == -1) {
 				ret = VarName.toUpperCase();
 			} else {
-				ret = VarName.toUpperCase() + Integer.toString(Var.Read);
+				ret = VarName.toUpperCase() + Integer.toString(read);
 			}
 		} else {
 			//Error handling
@@ -65,6 +75,7 @@ public class VariableManager {
 			Var = this.SearchVariable(VarName);
 			if (Var == null) {
 				//Error handling
+				System.out.println(this.MapList);
 			} else {
 				Variable NewVar = this.CreateVariable(VarName);
 				NewVar.Read = Var.Read;
@@ -114,5 +125,30 @@ public class VariableManager {
 		}
 		VarTuple += "pad}";
 		return VarTuple;
+	}
+
+	void StartUsingFilter(boolean FilterOnlyUsed) {
+		this.FilterOnlyUsed = FilterOnlyUsed;
+		this.filter += 1;
+	}
+	void StopUsingFilter() {
+		if (this.filter > 0) {
+			this.filter = - this.filter;
+		}
+	}
+	void ContinueUsingFilter(boolean FilterOnlyUsed) {
+		this.FilterOnlyUsed = FilterOnlyUsed;
+		if (this.filter < 0) {
+			this.filter = - this.filter;
+		}
+	}
+	void FinishUsingFilter() {
+		for (Map.Entry<String, Variable> KeyValue : this.CurrentMap.entrySet()) {
+			Variable Var = KeyValue.getValue();
+			if (Var.IsUsed) {
+				Var.Next += 1;
+			}
+		}
+		this.filter -= 1;
 	}
 }
