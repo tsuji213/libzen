@@ -54,7 +54,7 @@ public class VariableManager {
 			int read = Var.Read;
 			if (this.filter > 0
 				&& (!FilterOnlyUsed
-					|| (FilterOnlyUsed & Var.IsUsed))) {
+					|| (FilterOnlyUsed & Var.IsUsed()))) {
 				read += filter;
 			}
 			if (read == -1) {
@@ -80,12 +80,12 @@ public class VariableManager {
 				Variable NewVar = this.CreateVariable(VarName);
 				NewVar.Read = Var.Read;
 				NewVar.Next = Var.Next;
-				NewVar.IsUsed = true;
 				Var = NewVar;
 			}
 		}
 		Var.Read = Var.Next;
 		Var.Next += 1;
+		Var.UsedByCurrentScope();
 	}
 
 	void PushScope() {
@@ -101,10 +101,10 @@ public class VariableManager {
 			this.MapList.remove(size - 1);
 			for (Map.Entry<String, Variable> KeyValue : OldMap.entrySet()) {
 				Variable OldVar = KeyValue.getValue();
-				if (OldVar.IsUsed) {
+				if (OldVar.IsUsed()) {
 					Variable CurrentVar = this.CreateVariable(KeyValue.getKey());
 					CurrentVar.Next = OldVar.Next;
-					CurrentVar.IsUsed = true;
+					CurrentVar.UsedByChildScope();
 				}
 			}
 		} else {
@@ -116,7 +116,23 @@ public class VariableManager {
 		String VarTuple = "{";
 		for (Map.Entry<String, Variable> KeyValue : this.CurrentMap.entrySet()) {
 			Variable Var = KeyValue.getValue();
-			if (Var.IsUsed) {
+			//System.out.println(Var.UsedFlag);
+			if (Var.IsUsed()) {
+				String VarName = KeyValue.getKey();
+				if (DoIncrement) this.IncrementVariableNumber(VarName);
+				VarTuple += this.GenVariableName(VarName);
+				VarTuple += ", ";
+			}
+		}
+		VarTuple += "pad}";
+		return VarTuple;
+	}
+	String GenVarTupleOnlyUsedByChildScope(boolean DoIncrement) {
+		String VarTuple = "{";
+		for (Map.Entry<String, Variable> KeyValue : this.CurrentMap.entrySet()) {
+			Variable Var = KeyValue.getValue();
+			//System.out.println(Var.UsedFlag);
+			if (Var.IsUsedByChildScope()) {
 				String VarName = KeyValue.getKey();
 				if (DoIncrement) this.IncrementVariableNumber(VarName);
 				VarTuple += this.GenVariableName(VarName);
@@ -145,7 +161,7 @@ public class VariableManager {
 	void FinishUsingFilter() {
 		for (Map.Entry<String, Variable> KeyValue : this.CurrentMap.entrySet()) {
 			Variable Var = KeyValue.getValue();
-			if (Var.IsUsed) {
+			if (Var.IsUsed()) {
 				Var.Next += 1;
 			}
 		}

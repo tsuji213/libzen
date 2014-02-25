@@ -80,6 +80,7 @@ public class ErlSourceCodeGenerator extends ZSourceGenerator {
 	}
 
 	@Override public boolean StartCodeGeneration(ZNode Node,  boolean AllowLazy, boolean IsInteractive) {
+		System.out.println("start!!");
 		if (AllowLazy && Node.IsVarType()) {
 			return false;
 		}
@@ -87,7 +88,8 @@ public class ErlSourceCodeGenerator extends ZSourceGenerator {
 		this.HeaderBuilder.AppendLineFeed();
 		//if(IsInteractive) {
 		if (true) {//FIX ME!!
-			String Code = this.HeaderBuilder.toString() + this.BodyBuilder.toString();
+			//String Code = this.HeaderBuilder.toString() + this.BodyBuilder.toString();
+			String Code = this.HeaderBuilder.toString();
 			LibNative.println(Code);
 			this.HeaderBuilder.Clear();
 			this.BodyBuilder.Clear();
@@ -353,11 +355,11 @@ public class ErlSourceCodeGenerator extends ZSourceGenerator {
 		this.VisitBlockNode((ZBlockNode)Node.BodyNode, ",");
 		this.CurrentBuilder.AppendLineFeed();
 		this.CurrentBuilder.Indent();
-		this.CurrentBuilder.IndentAndAppend("F(F, __Arguments__);");
+		this.CurrentBuilder.IndentAndAppend(WhileNodeName + "(" + WhileNodeName + ", __Arguments__);");
 		this.CurrentBuilder.UnIndent();
 
 		this.CurrentBuilder.AppendLineFeed();
-		this.CurrentBuilder.IndentAndAppend("(_F, Args) ->");
+		this.CurrentBuilder.IndentAndAppend("(_, Args) ->");
 		this.CurrentBuilder.Indent();
 		this.CurrentBuilder.AppendLineFeed();
 		this.CurrentBuilder.IndentAndAppend("Args");
@@ -374,8 +376,8 @@ public class ErlSourceCodeGenerator extends ZSourceGenerator {
 		this.CurrentBuilder = this.BodyBuilder;
 		this.AppendLazy(mark1, ""
 						+ WhileNodeName
-						+ " = fun(F, "
-						+ this.VarMgr.GenVarTupleOnlyUsed(false)
+						+ " = fun(" + WhileNodeName + ", "
+						+ this.VarMgr.GenVarTupleOnlyUsedByChildScope(false)
 						+ ") when "
 						+ LazyBuilder.toString()
 						+ " -> ");
@@ -385,8 +387,8 @@ public class ErlSourceCodeGenerator extends ZSourceGenerator {
 		this.CurrentBuilder.AppendIndent();
 		int mark2 = this.GetLazyMark();
 		this.CurrentBuilder.Append(" = " + WhileNodeName + "(" + WhileNodeName + ", ");
-		this.CurrentBuilder.Append(this.VarMgr.GenVarTupleOnlyUsed(false) + ")");
-		this.AppendLazy(mark2, this.VarMgr.GenVarTupleOnlyUsed(true));
+		this.CurrentBuilder.Append(this.VarMgr.GenVarTupleOnlyUsedByChildScope(false) + ")");
+		this.AppendLazy(mark2, this.VarMgr.GenVarTupleOnlyUsedByChildScope(true));
 	}
 
 	// @Override public void VisitBreakNode(ZBreakNode Node) {
