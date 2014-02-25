@@ -67,12 +67,13 @@ import zen.parser.ZSourceGenerator;
 public class ErlSourceCodeGenerator extends ZSourceGenerator {
 	@Field protected ZSourceBuilder BodyBuilder;
 	@Field private int LoopNodeNumber;
+	@Field private VariableManager VarMgr;
 
 	public ErlSourceCodeGenerator/*constructor*/() {
 		super("erlang","5.10.4");
-		System.out.println("ErlSourceCodeGenerator created");
 		this.BodyBuilder = this.NewSourceBuilder();
 		this.CurrentBuilder = this.BodyBuilder;
+		this.VarMgr = new VariableManager();
 
 		this.HeaderBuilder.Append("-module(generated).");
 		this.HeaderBuilder.AppendLineFeed();
@@ -94,6 +95,18 @@ public class ErlSourceCodeGenerator extends ZSourceGenerator {
 		return true;
 	}
 
+	@Override public void VisitStmtList(ArrayList<ZNode> StmtList) {
+		@Var int i = 0;
+		@Var int size = StmtList.size();
+		while (i < size) {
+			@Var ZNode SubNode = StmtList.get(i);
+			this.CurrentBuilder.AppendLineFeed();
+			this.CurrentBuilder.AppendIndent();
+			this.GenerateCode(SubNode);
+			this.CurrentBuilder.Append(",");
+			i = i + 1;
+		}
+	}
 	public void VisitStmtList(ArrayList<ZNode> StmtList, String last) {
 		@Var int i = 0;
 		@Var int size = StmtList.size();
@@ -116,6 +129,17 @@ public class ErlSourceCodeGenerator extends ZSourceGenerator {
 		this.CurrentBuilder.Indent();
 		this.VisitStmtList(Node.StmtList, ".");
 		this.CurrentBuilder.UnIndent();
+	}
+
+	public void VisitBlockNode(ZBlockNode Node, String last) {
+		this.VarMgr.PushScope();
+		this.CurrentBuilder.Indent();
+		this.VisitStmtList(Node.StmtList);
+		this.CurrentBuilder.AppendLineFeed();
+		this.CurrentBuilder.IndentAndAppend(this.VarMgr.GenVarTupleOnlyUsed(false));
+		this.CurrentBuilder.Append(last);
+		this.CurrentBuilder.UnIndent();
+		this.VarMgr.PopScope();
 	}
 
 	// @Override
@@ -188,17 +212,20 @@ public class ErlSourceCodeGenerator extends ZSourceGenerator {
 	// 	this.CurrentBuilder.Append(Node.ReferenceName);
 	// }
 
-	// @Override
-	// public void VisitGetLocalNode(ZGetLocalNode Node) {
-	// 	this.CurrentBuilder.Append(Node.VarName);
-	// }
+	@Override public void VisitGetLocalNode(ZGetLocalNode Node) {
+		String VarName = this.VarMgr.GenVariableName(Node.VarName);
+		this.CurrentBuilder.Append(VarName);
+	}
 
-	// @Override
-	// public void VisitSetLocalNode(ZSetLocalNode Node) {
-	// 	this.CurrentBuilder.Append(Node.VarName);
-	// 	this.CurrentBuilder.AppendToken("=");
-	// 	this.GenerateCode(Node.ValueNode);
-	// }
+	@Override public void VisitSetLocalNode(ZSetLocalNode Node) {
+		int mark = this.GetLazyMark();
+
+		this.GenerateCode(Node.ValueNode);
+
+		String VarName = Node.VarName;
+		this.VarMgr.IncrementVariableNumber(VarName);
+		this.AppendLazy(mark, this.VarMgr.GenVariableName(VarName) + " = ");
+	}
 
 
 	// @Override public void VisitGetterNode(ZGetterNode Node) {
@@ -291,23 +318,23 @@ public class ErlSourceCodeGenerator extends ZSourceGenerator {
 	// }
 
 	@Override public void VisitIfNode(ZIfNode Node) {
+		int mark = this.GetLazyMark();
+
 		this.CurrentBuilder.Append("if");
 		this.CurrentBuilder.AppendLineFeed();
 		this.CurrentBuilder.AppendIndent();
 		this.GenerateCode(Node.CondNode);
 		this.CurrentBuilder.Append(" ->");
-		this.CurrentBuilder.Indent();
-		this.VisitStmtList(((ZBlockNode)Node.ThenNode).StmtList, ";");
-		this.CurrentBuilder.UnIndent();
+		this.VisitBlockNode((ZBlockNode)Node.ThenNode, ";");
 		if (Node.ElseNode != null) {
 			this.CurrentBuilder.AppendLineFeed();
 			this.CurrentBuilder.IndentAndAppend("true ->");
-			this.CurrentBuilder.Indent();
-			this.VisitStmtList(((ZBlockNode)Node.ElseNode).StmtList, "");
-			this.CurrentBuilder.UnIndent();
+			this.VisitBlockNode((ZBlockNode)Node.ElseNode, "");
 		}
 		this.CurrentBuilder.AppendLineFeed();
 		this.CurrentBuilder.IndentAndAppend("end");
+
+		this.AppendLazy(mark, this.VarMgr.GenVarTupleOnlyUsed(true) + " = ");
 	}
 
 	@Override public void VisitReturnNode(ZReturnNode Node) {
@@ -317,8 +344,6 @@ public class ErlSourceCodeGenerator extends ZSourceGenerator {
 	}
 
 	@Override public void VisitWhileNode(ZWhileNode Node) {
-		//add scope to varmap
-
 		this.LoopNodeNumber += 1;
 		String WhileNodeName = "Loop" + Integer.toString(this.LoopNodeNumber);
 
@@ -326,9 +351,9 @@ public class ErlSourceCodeGenerator extends ZSourceGenerator {
 		this.CurrentBuilder.AppendToken("= fun(F, {}) when");
 		this.GenerateCode(Node.CondNode);
 		this.CurrentBuilder.Append(" ->");
-		this.CurrentBuilder.Indent();
-		this.VisitStmtList(((ZBlockNode)Node.BodyNode).StmtList, ",");
+		this.VisitBlockNode((ZBlockNode)Node.BodyNode, ",");
 		this.CurrentBuilder.AppendLineFeed();
+		this.CurrentBuilder.Indent();
 		this.CurrentBuilder.IndentAndAppend("F(F, {});");
 		this.CurrentBuilder.UnIndent();
 
@@ -405,7 +430,7 @@ public class ErlSourceCodeGenerator extends ZSourceGenerator {
 	// }
 
 	@Override public void VisitParamNode(ZParamNode Node) {
-		this.CurrentBuilder.Append(Node.Name);
+		this.CurrentBuilder.Append(Node.Name.toUpperCase());
 	}
 
 	// @Override public void VisitFunctionNode(ZFunctionNode Node) {
@@ -417,7 +442,13 @@ public class ErlSourceCodeGenerator extends ZSourceGenerator {
 	// }
 
 	@Override public void VisitFuncDeclNode(ZFuncDeclNode Node) {
-		//add scope to varmap
+		int size = Node.ArgumentList.size();
+		int i = 0;
+		while (i < size) {
+			ZParamNode Param = (ZParamNode)Node.ArgumentList.get(i);
+			this.VarMgr.CreateVariable(Param.Name);
+			i += 1;
+		}
 
 		this.HeaderBuilder.Append("-export([" + Node.FuncName + "/" + Node.ArgumentList.size() + "]).");
 		this.HeaderBuilder.AppendLineFeed();
@@ -521,7 +552,7 @@ public class ErlSourceCodeGenerator extends ZSourceGenerator {
 		this.CurrentBuilder.Indent();
 		this.CurrentBuilder.IndentAndAppend("try "+ Node.FuncName + "_inner");
 		this.VisitParamList("(", Node.ArgumentList, ")");
-		this.CurrentBuilder.AppendToken("of");
+		this.CurrentBuilder.Append(" of");
 		this.CurrentBuilder.AppendLineFeed();
 		this.CurrentBuilder.Indent();
 		this.CurrentBuilder.IndentAndAppend("_ -> void");
@@ -536,5 +567,14 @@ public class ErlSourceCodeGenerator extends ZSourceGenerator {
 		this.CurrentBuilder.IndentAndAppend("end.");
 
 		this.CurrentBuilder.UnIndent();
+	}
+
+
+	private int GetLazyMark() {
+		this.CurrentBuilder.Append(null);
+		return this.CurrentBuilder.SourceList.size() - 1;
+	}
+	private void AppendLazy(int mark, String Code) {
+		this.CurrentBuilder.SourceList.set(mark, Code);
 	}
 }
