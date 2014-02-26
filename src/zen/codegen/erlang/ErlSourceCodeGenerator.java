@@ -80,7 +80,6 @@ public class ErlSourceCodeGenerator extends ZSourceGenerator {
 	}
 
 	@Override public boolean StartCodeGeneration(ZNode Node,  boolean AllowLazy, boolean IsInteractive) {
-		System.out.println("start!!");
 		if (AllowLazy && Node.IsVarType()) {
 			return false;
 		}
@@ -88,8 +87,8 @@ public class ErlSourceCodeGenerator extends ZSourceGenerator {
 		this.HeaderBuilder.AppendLineFeed();
 		//if(IsInteractive) {
 		if (true) {//FIX ME!!
-			//String Code = this.HeaderBuilder.toString() + this.BodyBuilder.toString();
-			String Code = this.HeaderBuilder.toString();
+			String Code = this.HeaderBuilder.toString() + this.BodyBuilder.toString();
+			//String Code = this.HeaderBuilder.toString();
 			LibNative.println(Code);
 			this.HeaderBuilder.Clear();
 			this.BodyBuilder.Clear();
